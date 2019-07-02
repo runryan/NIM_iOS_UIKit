@@ -186,25 +186,22 @@ static char imageURLKey;
     
     if (!(options & SDWebImageDelayPlaceholder)) {
         dispatch_main_async_safe(^{
-            [self nim_setImage:placeholder imageData:nil basedOnClassOrViaCustomSetImageBlock:nil];
+          self.image = placeholder;
+          [self nim_setNeedsLayout];
         });
     }
     
     if (url) {
-        // check if activityView is enabled or not
-        if ([self sd_showActivityIndicatorView]) {
-            [self sd_addActivityIndicator];
-        }
         
         __block NSURL *targetURL = url;
         __weak __typeof(self)wself = self;
         void(^loadBlock)(NSURL *URL)  =  ^(NSURL *URL) {
             __strong __typeof (wself) sself = wself;
             id <SDWebImageOperation> operation = [SDWebImageManager.sharedManager loadImageWithURL:URL options:options progress:progressBlock completed:^(UIImage *image, NSData *data, NSError *error, SDImageCacheType cacheType, BOOL finished, NSURL *imageURL) {
-                [sself sd_removeActivityIndicator];
                 if (image && ![URL isEqual:url])
                 {
-                    [SDWebImageManager.sharedManager saveImageToCache:image forURL:url];
+                NSString *cacheKey = [SDWebImageManager.sharedManager cacheKeyForURL:url];
+                [[SDWebImageManager.sharedManager imageCache] storeImage:image imageData:data forKey:cacheKey cacheType:cacheType completion:nil];
                 }
                 
                 if (!sself) {
@@ -220,11 +217,11 @@ static char imageURLKey;
                         completedBlock(image, error, cacheType, url);
                         return;
                     } else if (image) {
-                        [sself nim_setImage:image imageData:data basedOnClassOrViaCustomSetImageBlock:nil];
+                    sself.image = image;
                         [sself nim_setNeedsLayout];
                     } else {
                         if ((options & SDWebImageDelayPlaceholder)) {
-                            [sself nim_setImage:placeholder imageData:nil basedOnClassOrViaCustomSetImageBlock:nil];
+                        sself.image = placeholder;
                             [sself nim_setNeedsLayout];
                         }
                     }
@@ -235,34 +232,32 @@ static char imageURLKey;
             }];
             [sself sd_setImageLoadOperation:operation forKey:validOperationKey];
         };
-
-        [SDWebImageManager.sharedManager cachedImageExistsForURL:url completion:^(BOOL isInCache) {
-            if (!isInCache)
-            {
-                [[NIMSDK sharedSDK].resourceManager fetchNOSURLWithURL:[url absoluteString]
-                                                            completion:^(NSError * _Nullable error, NSString * _Nullable urlString)
-                 {
-                     if (urlString && !error) {
-                         targetURL = [NSURL URLWithString:urlString];
-                     }
-                     if (loadBlock)
+    NSString *cacheKey = [SDWebImageManager.sharedManager cacheKeyForURL:url];
+    [[SDWebImageManager.sharedManager imageCache] containsImageForKey:cacheKey cacheType:SDImageCacheTypeDisk completion:^(SDImageCacheType containsCacheType) {
+     if(containsCacheType == SDImageCacheTypeDisk) {
+                    [[NIMSDK sharedSDK].resourceManager fetchNOSURLWithURL:[url absoluteString]
+                                                                completion:^(NSError * _Nullable error, NSString * _Nullable urlString)
                      {
-                         dispatch_main_async_safe(^{
-                             loadBlock(targetURL);
-                         });
-                     }
-                 }];
-            } else {
-                if (loadBlock)
-                {
-                    loadBlock(targetURL);
+                         if (urlString && !error) {
+                             targetURL = [NSURL URLWithString:urlString];
+                         }
+                         if (loadBlock)
+                         {
+                             dispatch_main_async_safe(^{
+                                 loadBlock(targetURL);
+                             });
+                         }
+                     }];
+                } else {
+                    if (loadBlock)
+                    {
+                        loadBlock(targetURL);
+                    }
                 }
-            }
-        }];
+    }];
 
     } else {
         dispatch_main_async_safe(^{
-            [self sd_removeActivityIndicator];
             if (completedBlock) {
                 NSError *error = [NSError errorWithDomain:@"SDWebImageErrorDomain" code:-1 userInfo:@{NSLocalizedDescriptionKey : @"Trying to load a nil url"}];
                 completedBlock(nil, error, SDImageCacheTypeNone, url);
@@ -280,13 +275,6 @@ static char imageURLKey;
     [self nim_setImageWithURL:url placeholderImage:lastPreviousCachedImage ?: placeholder options:options progress:progressBlock completed:completedBlock];
 }
 
-- (void)nim_setImage:(UIImage *)image imageData:(NSData *)imageData basedOnClassOrViaCustomSetImageBlock:(SDSetImageBlock)setImageBlock {
-    if (setImageBlock) {
-        setImageBlock(image, imageData);
-        return;
-    }
-    self.image = image;
-}
 
 - (void)nim_setNeedsLayout {
     [self setNeedsLayout];

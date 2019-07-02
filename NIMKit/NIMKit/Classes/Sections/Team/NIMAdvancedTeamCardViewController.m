@@ -1098,7 +1098,11 @@
                 [[NIMSDK sharedSDK].teamManager updateTeamAvatar:urlString teamId:wself.team.teamId completion:^(NSError *error) {
                     if (!error) {
                         wself.team.avatarUrl = urlString;
-                        [[SDWebImageManager sharedManager] saveImageToCache:imageForAvatarUpload forURL:[NSURL URLWithString:urlString]];
+                    
+                    NSURL *url = [NSURL URLWithString:urlString];
+                    NSString *cacheKey = [[SDWebImageManager sharedManager] cacheKeyForURL:url];
+                    [[SDWebImageManager.sharedManager imageCache] storeImage:imageForAvatarUpload imageData:data forKey:cacheKey cacheType:SDImageCacheTypeDisk completion:nil];
+                    
                         NIMAdvancedTeamCardHeaderView *headerView = (NIMAdvancedTeamCardHeaderView *)wself.tableView.tableHeaderView;
                         [headerView refresh];
                     }else{

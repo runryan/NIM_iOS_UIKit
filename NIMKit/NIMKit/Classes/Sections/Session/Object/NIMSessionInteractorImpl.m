@@ -434,12 +434,20 @@ dispatch_queue_t NTESMessageDataPrepareQueue()
     }];
 }
 
+- (UIViewController *)findController {
+    UIViewController *presentedController = UIApplication.sharedApplication.keyWindow.rootViewController;
+    if(presentedController.presentedViewController) {
+        return presentedController.presentedViewController;
+    }
+    return presentedController;
+}
+
 - (void)mediaLocationPressed
 {
     NIMLocationViewController *vc = [[NIMLocationViewController alloc] initWithNibName:nil bundle:nil];
     vc.delegate = self;
     UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
-    [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:nav animated:YES completion:nil];
+    [[self findController] presentViewController:nav animated:YES completion:nil];
 }
 
 - (void)onSendLocation:(NIMKitLocationPoint *)locationPoint{ 
